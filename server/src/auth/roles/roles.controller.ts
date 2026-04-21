@@ -1,0 +1,111 @@
+import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { RolesService } from './roles.service';
+import { authorize } from '../decorators/authorize.decorator';
+import { Permissions } from '../constants/permissions.constants';
+import { User } from '../../users/schemas/users.schemas';
+
+@Controller('roles')
+export class RolesController {
+  constructor(
+    private readonly rolesService: RolesService,
+    @InjectModel(User.name) private readonly userModel: Model<User>,
+  ) {}
+
+  @authorize({ permissions: [Permissions.ROLES_VIEW] })
+  @Get()
+  async getAllRoles() {
+    return {
+      success: true,
+      data: await this.rolesService.getAllRoles(),
+    };
+  }
+
+  @authorize({ permissions: [Permissions.ROLES_CREATE] })
+  @Post()
+  async createRole(@Body() body: { name: string; description?: string }) {
+    return {
+      success: true,
+      data: await this.rolesService.createRole(body.name, body.description),
+      message: 'Role created successfully',
+    };
+  }
+
+  @authorize({ permissions: [Permissions.ROLES_VIEW] })
+  @Get(':name')
+  async getRole(@Param('name') name: string) {
+    return {
+      success: true,
+      data: await this.rolesService.getByName(name),
+    };
+  }
+
+  @authorize({ permissions: [Permissions.ROLES_UPDATE] })
+  @Patch(':name/rename')
+  async renameRole(
+    @Param('name') name: string,
+    @Body() body: { newName: string },
+  ) {
+    const renamed = await this.rolesService.renameRole(name, body.newName);
+
+    await this.userModel.updateMany(
+      { roles: name.toLowerCase().trim().replace(/\s+/g, '_') },
+      {
+        $set: {
+          'roles.$[oldRole]': renamed.name,
+        },
+      },
+      {
+        arrayFilters: [{ oldRole: name.toLowerCase().trim().replace(/\s+/g, '_') }],
+      },
+    );
+
+    return {
+      success: true,
+      data: renamed,
+      message: 'Role renamed successfully',
+    };
+  }
+
+  @authorize({ permissions: [Permissions.ROLES_ASSIGN_PERMISSIONS] })
+  @Patch(':name/permissions')
+  async addPermissions(
+    @Param('name') name: string,
+    @Body() body: { permissions: string[] },
+  ) {
+    return {
+      success: true,
+      data: await this.rolesService.addPermissions(name, body.permissions || []),
+      message: 'Permissions assigned to role',
+    };
+  }
+
+  @authorize({ permissions: [Permissions.ROLES_ASSIGN_PERMISSIONS] })
+  @Delete(':name/permissions')
+  async removePermissions(
+    @Param('name') name: string,
+    @Body() body: { permissions: string[] },
+  ) {
+    return {
+      success: true,
+      data: await this.rolesService.removePermissions(name, body.permissions || []),
+      message: 'Permissions removed from role',
+    };
+  }
+
+  @authorize({ permissions: [Permissions.ROLES_DELETE] })
+  @Delete(':name')
+  async deleteRole(@Param('name') name: string) {
+    const normalized = name.toLowerCase().trim().replace(/\s+/g, '_');
+    await this.rolesService.deleteRole(normalized);
+    await this.userModel.updateMany(
+      { roles: normalized },
+      { $pull: { roles: normalized } },
+    );
+    return {
+      success: true,
+      message: 'Role deleted successfully',
+    };
+  }
+}

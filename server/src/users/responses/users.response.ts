@@ -1,0 +1,33 @@
+export class UserResponseDto {
+  id!: string;
+  name!: string;
+  email!: string;
+  roles!: string[];
+  permissions?: string[];
+  team?: string;
+  isActive!: boolean;
+  lastLogin?: Date;
+  createdAt!: Date;
+  updatedAt!: Date;
+}
+
+export class UserListResponseDto {
+  success!: boolean;
+  data!: UserResponseDto[];
+  message!: string;
+  total?: number;
+  page?: number;
+  limit?: number;
+}
+
+export class SingleUserResponseDto {
+  success!: boolean;
+  data!: UserResponseDto;
+  message!: string;
+}
+
+export class GenericListResponseDto<T> {
+  success!: boolean;
+  data!: T[];
+  message!: string;
+}
